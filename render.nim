@@ -21,7 +21,8 @@ import mesh
 let args = docopt(doc)
 
 type
-  Offset = tuple[x: float, y: float, z: float]
+  Offset = tuple[x, y, z: float]
+  Vec2i = tuple[x, y: int]
 
 let
   input_file =  if args["-f"]: $args["FILE"][0] else: ""
@@ -35,15 +36,24 @@ var
   x1: int
   y1: int
 
+proc `+`(u, v: Vec2i): Vec2i =
+  result = (x: u.x + v.x, y: u.y + v.y)
+
+proc `-`(u, v: Vec2i): Vec2i =
+  result = (x: u.x - v.x, y: u.y - v.y)
+
+# proc `*`(u: Vec2i, f: float): Vec2i =
+#   result = (x: u.x.float * f, y: u.y.float * f)
+
 template verbose(lvl: int, stm: untyped): untyped =
   if args["--verbose"]:
     if parseInt($args["--verbose"]) == lvl: stm
 
-proc line(l_x0, l_y0, l_x1, l_y1: int, sur: PSurface, col: colors.Color) =
-  x0 = l_x0
-  y0 = l_y0
-  x1 = l_x1
-  y1 = l_y1
+proc line(p0, p1: Vec2i, sur: PSurface, col: colors.Color) =
+  x0 = p0.x
+  y0 = p0.y
+  x1 = p1.x
+  y1 = p1.y
   var steep = false
 
   if (abs(x0-x1) < abs(y0-y1)):
@@ -73,6 +83,32 @@ proc line(l_x0, l_y0, l_x1, l_y1: int, sur: PSurface, col: colors.Color) =
       y += (if y1 > y0: 1 else: -1)
       error2 -= dx * 2
 
+template triangle(v0, v1, v2: var Vec2i, sur: PSurface, col: colors.Color) =
+  if (v0.y > v1.y): swap(v0, v1)
+  if (v0.y > v2.y): swap(v0, v2)
+  if (v1.y > v2.y): swap(v1, v2)
+  line(v0, v1, sur, colYellow)
+  line(v1, v2, sur, colYellow)
+  line(v2, v0, sur, colRed)
+  let total_height = v2.y - v0.y
+  for y in v0.y .. v1.y:
+    let segment_height = v1.y - v0.y + 1
+    let alpha = (y - v0.y) / total_height
+    let beta = (y - v0.y) / segment_height
+    let a = v0 + (v2 - v0)
+    let b = v0 + (v1 - v0)
+    # TODO: put pixels
+
+  # for (int y=t0.y; y<=t1.y; y++) { 
+  #   int segment_height = t1.y-t0.y+1; 
+  #   float alpha = (float)(y-t0.y)/total_height; 
+  #   float beta  = (float)(y-t0.y)/segment_height; // be careful with divisions by zero 
+  #   Vec2i A = t0 + (t2-t0)*alpha; 
+  #   Vec2i B = t0 + (t1-t0)*beta; 
+  #   image.set(A.x, y, red); 
+  #   image.set(B.x, y, green); 
+                               # }
+
 proc scale_factor(mesh: Mesh, width, height: int): float =
   verbose(1, echo "max" & $max([mesh.width, mesh.height]))
   return min([width, height]).float / max([mesh.width, mesh.height]) / 2
@@ -100,17 +136,18 @@ proc flip_horizontally(surf: PSurface) =
       surf.setPixel(x, mirror, p1)
 
 proc render(surf: PSurface, mesh: Mesh, offset: Offset, scale: float) =
+  var p0, p1: Vec2i
   for face in mesh.faces:
     for i,v in pairs(face.v):
       let v0 = face.v[i]
       let v1 = face.v[fmod(float(i+1), 3).int]
-      let x0 = ((v0.x + offset.x) * scale).round.int
-      let y0 = ((v0.y + offset.y) * scale).round.int
-      let x1 = ((v1.x + offset.x) * scale).round.int
-      let y1 = ((v1.y + offset.y) * scale).round.int
+      p0.x = ((v0.x + offset.x) * scale).round.int
+      p0.y = ((v0.y + offset.y) * scale).round.int
+      p1.x = ((v1.x + offset.x) * scale).round.int
+      p1.y = ((v1.y + offset.y) * scale).round.int
       verbose(2, echo "i:$# $# $# $# $#" % [$i, $x0, $y0, $x1, $y1])
       # echo "i:$# $# $#" % [$i, $v0, $v1]
-      line(x0, y0, x1, y1, surf, colWhite)
+      line(p0, p1, surf, colWhite)
 
 
 let w_obj = Mesh.newMesh(input_file)
@@ -124,7 +161,13 @@ let scale = scale_factor(w_obj, width, height)
 verbose(1, echo "offset " & $offset)
 verbose(1, echo "scale : $#" % $scale)
 
-render(surf, w_obj, offset, scale)
+# render(surf, w_obj, offset, scale)
+var t0: array[3, Vec2i] = [(10, 70), (50, 160), (70, 80)]
+var t1: array[3, Vec2i] = [(180, 50), (150, 1), (70, 180)]
+var t2: array[3, Vec2i] = [(180, 150), (120, 160), (130, 180)]
+triangle(t0[0], t0[1], t0[2], surf, colRed)
+triangle(t1[0], t1[1], t1[2], surf, colWhite)
+triangle(t2[0], t2[1], t2[2], surf, colGreen)
 
 flip_horizontally(surf)
 surf.writeToBMP(output_file)
