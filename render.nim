@@ -22,7 +22,7 @@ let args = docopt(doc)
 
 type
   Offset = tuple[x, y, z: float]
-  Vec2i = tuple[x, y: int]
+  Vec2i = tuple[x, y: float]
 
 let
   input_file =  if args["-f"]: $args["FILE"][0] else: ""
@@ -36,24 +36,30 @@ var
   x1: int
   y1: int
 
+iterator countup*(a: float, b: float, step = 1.0): float {.inline.} =
+  var res:float = a
+  while res <= b:
+    yield res
+    res += step
+
 proc `+`(u, v: Vec2i): Vec2i =
   result = (x: u.x + v.x, y: u.y + v.y)
 
 proc `-`(u, v: Vec2i): Vec2i =
   result = (x: u.x - v.x, y: u.y - v.y)
 
-# proc `*`(u: Vec2i, f: float): Vec2i =
-#   result = (x: u.x.float * f, y: u.y.float * f)
+proc `*`(u: Vec2i, f: float): Vec2i =
+  result = (x: u.x.float * f, y: u.y.float * f)
 
 template verbose(lvl: int, stm: untyped): untyped =
   if args["--verbose"]:
     if parseInt($args["--verbose"]) == lvl: stm
 
 proc line(p0, p1: Vec2i, sur: PSurface, col: colors.Color) =
-  x0 = p0.x
-  y0 = p0.y
-  x1 = p1.x
-  y1 = p1.y
+  x0 = p0.x.int
+  y0 = p0.y.int
+  x1 = p1.x.int
+  y1 = p1.y.int
   var steep = false
 
   if (abs(x0-x1) < abs(y0-y1)):
@@ -84,30 +90,29 @@ proc line(p0, p1: Vec2i, sur: PSurface, col: colors.Color) =
       error2 -= dx * 2
 
 template triangle(v0, v1, v2: var Vec2i, sur: PSurface, col: colors.Color) =
+  # if v0.y == v1.y and v0.y == v1.y: discard
   if (v0.y > v1.y): swap(v0, v1)
   if (v0.y > v2.y): swap(v0, v2)
   if (v1.y > v2.y): swap(v1, v2)
-  line(v0, v1, sur, colYellow)
-  line(v1, v2, sur, colYellow)
-  line(v2, v0, sur, colRed)
-  let total_height = v2.y - v0.y
-  for y in v0.y .. v1.y:
-    let segment_height = v1.y - v0.y + 1
-    let alpha = (y - v0.y) / total_height
-    let beta = (y - v0.y) / segment_height
-    let a = v0 + (v2 - v0)
-    let b = v0 + (v1 - v0)
-    # TODO: put pixels
 
-  # for (int y=t0.y; y<=t1.y; y++) { 
-  #   int segment_height = t1.y-t0.y+1; 
-  #   float alpha = (float)(y-t0.y)/total_height; 
-  #   float beta  = (float)(y-t0.y)/segment_height; // be careful with divisions by zero 
-  #   Vec2i A = t0 + (t2-t0)*alpha; 
-  #   Vec2i B = t0 + (t1-t0)*beta; 
-  #   image.set(A.x, y, red); 
-  #   image.set(B.x, y, green); 
-                               # }
+  let total_height = v2.y - v0.y
+
+  var
+    second_half: bool
+    segment_height: float
+    a, b: Vec2i
+    alpha, beta: float
+
+  for i in countUp(0, total_height):
+    second_half = i > v1.y - v0.y or v1.y == v0.y
+    segment_height = if second_half: v2.y - v1.y else: v1.y - v0.y
+    alpha = i / total_height
+    beta = (i - (if second_half: v1.y - v0.y else: 0)) / segment_height
+    a = v0 + (v2 - v0) * alpha
+    b = if second_half: v1 + (v2 - v1) * beta else: v0 + (v1 - v0) * beta
+    if a.x > b.x: swap(a, b)
+    for j in countUp(a.x, b.x):
+      surf.setPixel(j.int, int(v0.y + i), col)
 
 proc scale_factor(mesh: Mesh, width, height: int): float =
   verbose(1, echo "max" & $max([mesh.width, mesh.height]))
@@ -141,10 +146,10 @@ proc render(surf: PSurface, mesh: Mesh, offset: Offset, scale: float) =
     for i,v in pairs(face.v):
       let v0 = face.v[i]
       let v1 = face.v[fmod(float(i+1), 3).int]
-      p0.x = ((v0.x + offset.x) * scale).round.int
-      p0.y = ((v0.y + offset.y) * scale).round.int
-      p1.x = ((v1.x + offset.x) * scale).round.int
-      p1.y = ((v1.y + offset.y) * scale).round.int
+      p0.x = ((v0.x + offset.x) * scale)
+      p0.y = ((v0.y + offset.y) * scale)
+      p1.x = ((v1.x + offset.x) * scale)
+      p1.y = ((v1.y + offset.y) * scale)
       verbose(2, echo "i:$# $# $# $# $#" % [$i, $x0, $y0, $x1, $y1])
       # echo "i:$# $# $#" % [$i, $v0, $v1]
       line(p0, p1, surf, colWhite)
@@ -162,9 +167,9 @@ verbose(1, echo "offset " & $offset)
 verbose(1, echo "scale : $#" % $scale)
 
 # render(surf, w_obj, offset, scale)
-var t0: array[3, Vec2i] = [(10, 70), (50, 160), (70, 80)]
-var t1: array[3, Vec2i] = [(180, 50), (150, 1), (70, 180)]
-var t2: array[3, Vec2i] = [(180, 150), (120, 160), (130, 180)]
+var t0: array[3, Vec2i] = [(10.0, 70.0), (50.0, 160.0), (70.0, 80.0)]
+var t1: array[3, Vec2i] = [(180.0, 50.0), (150.0, 1.0), (70.0, 180.0)]
+var t2: array[3, Vec2i] = [(180.0, 150.0), (120.0, 160.0), (130.0, 180.0)]
 triangle(t0[0], t0[1], t0[2], surf, colRed)
 triangle(t1[0], t1[1], t1[2], surf, colWhite)
 triangle(t2[0], t2[1], t2[2], surf, colGreen)
