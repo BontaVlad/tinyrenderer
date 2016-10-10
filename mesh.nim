@@ -4,10 +4,10 @@ import nimasset.obj
 
 
 type
-  Vertex = tuple[x, y, z: float]
-  Texture = tuple[u, v, w: float]
-  Normal = tuple[x, y, z: float]
-  Face = tuple[v: array[3, Vertex], t: array[3, Texture], n: array[3, Normal]]
+  Vertex* = tuple[x, y, z: float]
+  Texture* = tuple[u, v, w: float]
+  Normal* = tuple[x, y, z: float]
+  Face* = tuple[v: array[3, Vertex], t: array[3, Texture], n: array[3, Normal]]
   Mesh* = ref object
     vertices*: seq[Vertex]
     textures*: seq[Texture]
