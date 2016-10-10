@@ -135,7 +135,7 @@ verbose(2, echo args)
 verbose(0, echo "Loaded mesh: " & $w_obj)
 
 var s = newSurface(width, height)
-s.flip_both()
+s.flip_vertically()
 
 let offset = get_offset(w_obj)
 let scale = scale_factor(w_obj, width, height)

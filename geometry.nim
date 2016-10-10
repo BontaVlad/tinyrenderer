@@ -17,3 +17,9 @@ proc newTriangle*(v0, v1, v2: Vec2i): Triangle =
   result.v0 = v0
   result.v1 = v1
   result.v2 = v2
+
+proc barycentric(t: Triangle): Vec2i =
+  discard
+
+proc bounding_box(t: Triangle): Vec2i =
+  discard

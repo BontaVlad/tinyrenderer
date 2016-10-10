@@ -63,14 +63,14 @@ proc dump_to_ppm(s: Surface, path: string) =
     raise newException(IOError, "could not create file")
   fs.writeLine("P3")
   fs.writeLine(" ")
-  fs.writeLine("$# $#" % [$s.w, $s.h])
+  fs.writeLine("$# $#" % [$(s.w + 1), $(s.h + 1)])
   fs.writeLine(" ")
   fs.writeLine("255")
   fs.writeLine(" ")
   for y, row in pairs(s.pixels):
     for x, p in pairs(row):
       let rgb = extractRGB(p)
-      fs.write(" $# $# $#" % [$rgb[0], $rgb[1], $rgb[2]])
+      fs.write(" $# $# $#  " % [$rgb[0], $rgb[1], $rgb[2]])
     fs.writeLine()
 
 proc dump_to_bmp(s: Surface, path: string) =
@@ -79,9 +79,6 @@ proc dump_to_bmp(s: Surface, path: string) =
   for y, row in pairs(s.pixels):
     for x, p in pairs(row):
       surf.setPixel(x, y, p)
-      # let rgb = extractRGB(p)
-      # fs.write("$# $# $# " % [$rgb[0], $rgb[1], $rgb[2]])
-    # fs.writeLine(" ")
   surf.writeToBMP(path)
 
 proc dump_to_file*(s: Surface, path: string) =
