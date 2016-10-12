@@ -70,7 +70,7 @@ proc dump_to_ppm(s: Surface, path: string) =
   for y, row in pairs(s.pixels):
     for x, p in pairs(row):
       let rgb = extractRGB(p)
-      fs.write(" $# $# $#  " % [$rgb[0], $rgb[1], $rgb[2]])
+      fs.write(" $# $# $#" % [$rgb[0], $rgb[1], $rgb[2]])
     fs.writeLine()
 
 proc dump_to_bmp(s: Surface, path: string) =
