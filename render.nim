@@ -7,6 +7,7 @@ Options:
   --verbose=<lvl>     Show debug messages based on level
   --width=<pixels>    Image width [default: 800]
   --height=<pixels>   Image height [default: 800]
+  --wireframe=<over | only>
 """
 
 import colors, os, math, system, strutils, random, basic3d
@@ -25,6 +26,7 @@ let
   output_file =  if args["-o"]: $args["FILE"][1] else: ""
   width = parse_int($args["--width"])
   height = parse_int($args["--height"])
+  wireframe = $args["--wireframe"]
 
 template verbose(lvl: int, stm: untyped): untyped =
   if args["--verbose"]:
@@ -64,15 +66,18 @@ proc line(v0_in, v1_in: Vec2, sur: var Surface, col: colors.Color) =
       y += (if v1.y > v0.y: 1 else: -1)
       error2 -= dx * 2
 
-proc triangle*(t: Triangle, surf: var Surface, col: colors.Color, wireframe=false) =
-  for pixel in get_points_in_bbox(t.bounding_box):
-    if t.is_inside(pixel):
-      surf.setPixel(pixel.x, pixel.y, col)
+proc triangle*(t: Triangle, surf: var Surface, col: colors.Color, wireframe="") =
+  if not wireframe.isNilOrEmpty and not (wireframe in ["over", "only"]):
+    raise newException(ValueError, "invalid wireframe mode")
+  if wireframe != "only":
+    for pixel in get_points_in_bbox(t.bounding_box):
+      if t.is_inside(pixel):
+        surf.setPixel(pixel.x, pixel.y, col)
 
-  if wireframe:
-    line(t.v0, t.v1, surf, colBlack)
-    line(t.v1, t.v2, surf, colBlack)
-    line(t.v2, t.v0, surf, colBlack)
+  if not wireframe.isNilOrEmpty:
+    line(t.v0, t.v1, surf, colYellow)
+    line(t.v1, t.v2, surf, colYellow)
+    line(t.v2, t.v0, surf, colYellow)
 
 proc draw_boundingbox(s: var Surface, t: Triangle) =
   let bbox = t.bounding_box
@@ -111,7 +116,7 @@ proc render(surf: var Surface, mesh: Mesh, offset: Offset, scale: float) =
     let intensity = v_n * light_dir
     if intensity >= 0.0:
       let color = rgb((intensity * 255).int, (intensity * 255).int, (intensity * 255).int)
-      triangle(newTriangle(screen_coordinates[0], screen_coordinates[1], screen_coordinates[2]), surf, color)
+      triangle(newTriangle(screen_coordinates[0], screen_coordinates[1], screen_coordinates[2]), surf, color, wireframe)
 
 let w_obj = Mesh.newMesh(input_file)
 verbose(2, echo args)
