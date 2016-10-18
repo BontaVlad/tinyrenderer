@@ -3,7 +3,8 @@ import surface, colors, utils, math
 type
   Vec2* = tuple[x, y: float]
   Vec3* = tuple[x, y, z: float]
-  Triangle* = tuple[v0, v1, v2: Vec2]
+  Triangle* = object
+    v0*, v1*, v2*: Vec3
   BBox* = tuple[p0, p1, p2, p3: Vec2]
 
 proc len*(v: Vec3): float=
@@ -42,7 +43,7 @@ proc normalize*(v: Vec3): Vec3 =
   result.y = v.y / mag
   result.z = v.z / mag
 
-proc newTriangle*(v0, v1, v2: Vec2): Triangle =
+proc newTriangle*(v0, v1, v2: Vec3): Triangle =
   result.v0 = v0
   result.v1 = v1
   result.v2 = v2
@@ -71,6 +72,6 @@ proc barycentric*(t: Triangle, p: Vec2): array[3, float] =
   let lambda3 = 1.0 - lambda1 - lambda2
   return [lambda1, lambda2, lambda3]
 
-proc is_inside*(t: Triangle, v: Vec2): bool =
-  result = min(t.barycentric(v)) >= 0.0
+template is_inside*(bc: array[3, float], v: Vec2): bool =
+  min(bc) >= 0.0
 
