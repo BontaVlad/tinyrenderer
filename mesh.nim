@@ -82,10 +82,12 @@ proc newMesh*(path: string): Mesh =
   loadMeshData(loader, fs, addVertex, addTexture, addNormal, addFace)
   return mesh
 
-proc load_diffusemap*(self: var Mesh, filename: string) =
-  self.diffusemap = ImageNew(filename)
-  echo self.diffusemap.height
-  echo self.diffusemap.width
+proc newMesh*(mesh_filepath, diffuse_filepath: string): Mesh =
+  echo "loading diffuse: " & diffuse_filepath
+  new(result)
+  result = newMesh(mesh_filepath)
+  result.diffusemap = newImage(diffuse_filepath)
 
 proc diffuseGetColor*(self: Mesh, uv: Vec2): Color =
-  result = self.diffusemap.getPixel(uv.x.int, uv.y.int).toColor
+  discard
+  # result = self.diffusemap.getPixel(uv.x.int, uv.y.int).toColor

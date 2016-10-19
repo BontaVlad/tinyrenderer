@@ -1,6 +1,6 @@
 let doc = """
 Usage:
-  render [options] -f FILE -o FILE
+  render [options] -f FILE -o FILE [--diffuse FILE]
 
 Options:
   -h --help           Show this message
@@ -25,6 +25,7 @@ type
 let
   input_file =  if args["-f"]: $args["FILE"][0] else: ""
   output_file =  if args["-o"]: $args["FILE"][1] else: ""
+  diffuse_file =  if args["--diffuse"]: $args["FILE"][2] else: ""
   width = parse_int($args["--width"])
   height = parse_int($args["--height"])
   wireframe = $args["--wireframe"]
@@ -106,15 +107,15 @@ proc triangle*(tv, tuv: Triangle, surf: var Surface, mesh: Mesh, zBuffer: var Zb
             uv.x += (u.x * bc[j]) * 1024
             uv.y += (u.y * bc[j]) * 1024
             inc(j)
-          let
-            dif_col = mesh.diffuseGetColor(uv)
-          let tmp = dif_col.extractRGB
-          let r = (tmp.r.float * intensity).round.int
-          let g = (tmp.g.float * intensity).round.int
-          let b = (tmp.b.float * intensity).round.int
-          let col = if intensity > 0.0: rgb(r, g, b) else: dif_col
+          # let
+          #   dif_col = mesh.diffuseGetColor(uv)
+          # let tmp = dif_col.extractRGB
+          # let r = (tmp.r.float * intensity).round.int
+          # let g = (tmp.g.float * intensity).round.int
+          # let b = (tmp.b.float * intensity).round.int
+          # let col = if intensity > 0.0: rgb(r, g, b) else: dif_col
           zBuffer[pixel.x, pixel.y] = point.z
-          surf.setPixel(pixel.x, pixel.y, col)
+          surf.setPixel(pixel.x, pixel.y, colWhite)
 
   if not wireframe.isNilOrEmpty:
     line(tv.v0, tv.v1, surf, colYellow)
@@ -165,8 +166,11 @@ proc render(surf: var Surface, mesh: Mesh, offset: Offset, scale: float) =
       uv_triangle = newTriangle(face.t[0], face.t[1], face.t[2])
     triangle(verts_triangle, uv_triangle, surf, mesh, zBuffer, intensity, wireframe)
 
-var w_obj = newMesh(input_file)
-w_obj.load_diffusemap("african_head_diffuse.tga")
+var w_obj: Mesh
+if diffuse_file.isNilOrEmpty:
+  w_obj = newMesh(input_file)
+else:
+  w_obj = newMesh(input_file, diffuse_file)
 verbose(2, echo args)
 verbose(0, echo "Loaded mesh: " & $w_obj)
 

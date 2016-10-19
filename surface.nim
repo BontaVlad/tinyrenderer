@@ -1,5 +1,7 @@
 import colors, strutils, sequtils, streams, graphics
 
+import nimtga
+
 type
   Point* = tuple[x, y: int]
   Surface* = object
@@ -81,10 +83,29 @@ proc dump_to_bmp(s: Surface, path: string) =
       surf.setPixel(x, y, p)
   surf.writeToBMP(path)
 
+proc dump_to_tga(s: Surface, path: string) =
+  # TODO: fix off by one bug
+  var pixel_data: seq[seq[Pixel]]
+  pixel_data = @[]
+
+  for y, row in pairs(s.pixels):
+    try:
+      pixel_data[y].add(@[])
+    except IndexError:
+      pixel_data.add(@[])
+    for p in row:
+      let
+        rgb = extractRGB(p)
+        pixel = newPixel(rgb)
+      pixel_data[y].add(pixel)
+  var image = newImage(data=pixel_data)
+  image.save(path)
+
 proc dump_to_file*(s: Surface, path: string) =
   let components = path.split(".")
   let ext = components[1]
   case ext
   of "ppm": dump_to_ppm(s, path)
   of "bmp": dump_to_bmp(s, path)
+  of "tga": dump_to_tga(s, path)
   else: raise newException(ValueError, "given extension is not supported")
