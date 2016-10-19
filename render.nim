@@ -80,29 +80,46 @@ proc line(v0_in, v1_in: Vec3, sur: var Surface, col: colors.Color) =
       y += (if v1.y > v0.y: 1 else: -1)
       error2 -= dx * 2
 
-proc triangle*(t: Triangle, surf: var Surface, zBuffer: var Zbuffer, col: colors.Color, wireframe="") =
+proc triangle*(tv, tuv: Triangle, surf: var Surface, mesh: Mesh, zBuffer: var Zbuffer, intensity: float, wireframe="") =
   if not wireframe.isNilOrEmpty:
     if not (wireframe in ["over", "only"]):
       raise newException(ValueError, "invalid wireframe mode")
 
   if wireframe != "only":
     var point: Vec3
-    for pixel in get_points_in_bbox(t.bounding_box):
+    for pixel in get_points_in_bbox(tv.bounding_box):
       point.z = 0
-      let bc = t.barycentric(pixel)
+      let bc = tv.barycentric(pixel)
       if is_inside(bc, pixel):
         var i = 0
-        for v in t.fields:
+        for v in tv.fields:
           point.z += v.z * bc[i]
           inc(i)
+
         if zBuffer[pixel.x, pixel.y] < point.z:
+          var
+            uv: Vec2 = (0.0, 0.0)
+            j = 0
+          for u in tuv.fields:
+            # uv.x += (u.x * bc[j]) * mesh.diffusemap.width
+            # uv.y += (u.y * bc[j]) * mesh.diffusemap.heigh
+            uv.x += (u.x * bc[j]) * 1024
+            uv.y += (u.y * bc[j]) * 1024
+            inc(j)
+          let
+            dif_col = mesh.diffuseGetColor(uv)
+          let tmp = dif_col.extractRGB
+          let r = (tmp.r.float * intensity).round.int
+          let g = (tmp.g.float * intensity).round.int
+          let b = (tmp.b.float * intensity).round.int
+          let col = if intensity > 0.0: rgb(r, g, b) else: dif_col
           zBuffer[pixel.x, pixel.y] = point.z
           surf.setPixel(pixel.x, pixel.y, col)
 
   if not wireframe.isNilOrEmpty:
-    line(t.v0, t.v1, surf, colYellow)
-    line(t.v1, t.v2, surf, colYellow)
-    line(t.v2, t.v0, surf, colYellow)
+    line(tv.v0, tv.v1, surf, colYellow)
+    line(tv.v1, tv.v2, surf, colYellow)
+    line(tv.v2, tv.v0, surf, colYellow)
 
 # debug helpers
 # proc draw_boundingbox(s: var Surface, t: Triangle) =
@@ -132,21 +149,24 @@ proc get_offset(mesh: Mesh): Offset =
   )
 
 proc render(surf: var Surface, mesh: Mesh, offset: Offset, scale: float) =
-  let light_dir: Vec3 = (0.0, 0.0, 0.8)
+  # TODO: make a raster
+  let light_dir: Vec3 = (0.0, 0.0, 1.0)
   var zBuffer = ZbufferNew()
   var
     screen_coordinates: array[3, Vec3]
   for face in mesh.faces:
     for i,v in pairs(face.v):
       screen_coordinates[i] = ((v.x + offset.x) * scale, (v.y + offset.y) * scale, v.z)
-    let v = (face.v[1] - face.v[0]) ^ (face.v[2] - face.v[0])
-    let v_n = v.normalize()
-    let intensity = v_n * light_dir
-    if intensity >= 0.0:
-      let color = rgb((intensity * 255).int, (intensity * 255).int, (intensity * 255).int)
-      triangle(newTriangle(screen_coordinates[0], screen_coordinates[1], screen_coordinates[2]), surf, zBuffer, color, wireframe)
+    let
+      v = (face.v[1] - face.v[0]) ^ (face.v[2] - face.v[0])
+      v_n = v.normalize()
+      intensity = v_n * light_dir
+      verts_triangle = newTriangle(screen_coordinates[0], screen_coordinates[1], screen_coordinates[2])
+      uv_triangle = newTriangle(face.t[0], face.t[1], face.t[2])
+    triangle(verts_triangle, uv_triangle, surf, mesh, zBuffer, intensity, wireframe)
 
-let w_obj = newMesh(input_file)
+var w_obj = newMesh(input_file)
+w_obj.load_diffusemap("african_head_diffuse.tga")
 verbose(2, echo args)
 verbose(0, echo "Loaded mesh: " & $w_obj)
 

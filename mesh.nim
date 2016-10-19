@@ -11,7 +11,7 @@ type
     textures*: seq[Vec3]
     normals*: seq[Vec3]
     faces*: seq[Face]
-    diffusemap: Image
+    diffusemap*: Image
 
 # proc all[T](args: varargs[T]): bool =
 #   return 0 in args
@@ -84,6 +84,8 @@ proc newMesh*(path: string): Mesh =
 
 proc load_diffusemap*(self: var Mesh, filename: string) =
   self.diffusemap = ImageNew(filename)
+  echo self.diffusemap.height
+  echo self.diffusemap.width
 
 proc diffuseGetColor*(self: Mesh, uv: Vec2): Color =
   result = self.diffusemap.getPixel(uv.x.int, uv.y.int).toColor
