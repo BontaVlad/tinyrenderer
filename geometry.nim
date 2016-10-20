@@ -74,4 +74,3 @@ proc barycentric*(t: Triangle, p: Vec2): array[3, float] =
 
 template is_inside*(bc: array[3, float], v: Vec2): bool =
   min(bc) >= 0.0
-
