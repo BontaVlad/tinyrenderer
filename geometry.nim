@@ -37,7 +37,7 @@ proc normalize*(v: Vec3): Vec3 =
   let mag=v.len
 
   if mag==0.0:
-    raise newException(DivByZeroError,"Cannot normalize zero length vector")
+    raise newException(DivByZeroError, "Cannot normalize zero length vector")
 
   result.x = v.x / mag
   result.y = v.y / mag
@@ -58,11 +58,10 @@ proc bounding_box*(t: Triangle): BBox=
   result.p2.x = result.p0.x
   result.p2.y = result.p3.y
 
-proc get_points_in_bbox*(bbox: BBox): seq[Vec2] =
-  result = @[]
+iterator get_points_in_bbox*(bbox: BBox): Vec2 =
   for y in bbox.p0.y.int .. bbox.p3.y.int:
     for x in bbox.p0.x.int .. bbox.p3.x.int:
-      result.add((x.float, y.float))
+      yield (x.float, y.float)
 
 proc barycentric*(t: Triangle, p: Vec2): array[3, float] =
   let lambda1 = ((t.v1.y - t.v2.y) * (p.x - t.v2.x) + (t.v2.x - t.v1.x) * (p.y - t.v2.y)) /
@@ -73,4 +72,6 @@ proc barycentric*(t: Triangle, p: Vec2): array[3, float] =
   return [lambda1, lambda2, lambda3]
 
 template is_inside*(bc: array[3, float], v: Vec2): bool =
-  min(bc) >= 0.0
+  # min(bc) >= 0.0
+  # this is faster
+  bc[0] >= 0.0 and bc[1] >= 0.0 and bc[2] >= 0
