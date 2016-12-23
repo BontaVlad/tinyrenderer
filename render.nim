@@ -10,16 +10,21 @@ Options:
   --wireframe=<over | only>
 """
 
-import colors, os, math, strutils, random, basic3d
+import colors
+import math
+import strutils
 
+import glm
 import docopt
 
-import mesh, geometry, surface, utils
+import mesh
+import geometry
+import surface
+import utils
 
 let args = docopt(doc)
 
 type
-  Offset = tuple[x, y, z: float]
   Zbuffer = seq[float]
 
 let
@@ -28,6 +33,7 @@ let
   diffuse_file =  if args["--diffuse"]: $args["FILE"][2] else: ""
   width = parse_int($args["--width"])
   height = parse_int($args["--height"])
+  depth = 300
   wireframe = $args["--wireframe"]
 
 template verbose(lvl: int, stm: untyped): untyped =
@@ -35,21 +41,29 @@ template verbose(lvl: int, stm: untyped): untyped =
     if parseInt($args["--verbose"]) == lvl: stm
 
 proc `[]=`(z: var Zbuffer, x, y: int | float, value: float) =
-  let idx = x.int + y.int * width
-  z[idx] = value
+  try:
+    let idx = x.int + y.int * width
+    z[idx] = value
+  except IndexError:
+    discard
+    echo "x: $# y: $#" % [$x, $y]
 
 proc `[]`(z: Zbuffer, x, y: int | float): float =
-  let idx = x.int + y.int * width
-  result = z[idx]
+  try:
+    let idx = x.int + y.int * width
+    result = z[idx]
+  except IndexError:
+    discard
+    echo "x: $# y: $#" % [$x, $y]
 
 proc ZbufferNew(): Zbuffer =
   result = @[]
   for i in 0 .. height * width:
     result.add(NegInf)
 
-proc line(v0_in, v1_in: Vec3, sur: var Surface, col: colors.Color) =
+proc line(v0_in, v1_in: Vec3[float], sur: var Surface, col: Color) =
   var
-    v0, v1: Vec3
+    v0, v1: Vec3[float]
     steep = false
   v0 = v0_in
   v1 = v1_in
@@ -71,56 +85,18 @@ proc line(v0_in, v1_in: Vec3, sur: var Surface, col: colors.Color) =
   var y = v0.y
 
   y = v0.y
-  for x in countUp(v0.x, v1.x):
-    if steep:
-      sur.setPixel(y, x, col)
-    else:
-      sur.setPixel(x, y, col)
-    error2 += derror2
-    if error2 > dx:
-      y += (if v1.y > v0.y: 1 else: -1)
-      error2 -= dx * 2
-
-proc triangle*(tv, tuv: Triangle, surf: var Surface, mesh: Mesh, zBuffer: var Zbuffer, intensity: float, wireframe="") =
-  if not wireframe.isNilOrEmpty:
-    if not (wireframe in ["over", "only"]):
-      raise newException(ValueError, "invalid wireframe mode")
-
-  if wireframe != "only":
-    var point: Vec3
-    for pixel in get_points_in_bbox(tv.bounding_box):
-      point.z = 0
-      let bc = tv.barycentric(pixel)
-      if is_inside(bc, pixel):
-        var i = 0
-        for v in tv.fields:
-          point.z += v.z * bc[i]
-          inc(i)
-
-        if zBuffer[pixel.x, pixel.y] < point.z:
-          var
-            uv: Vec2 = (0.0, 0.0)
-            j = 0
-          for u in tuv.fields:
-            # uv.x += (u.x * bc[j]) * mesh.diffusemap.width
-            # uv.y += (u.y * bc[j]) * mesh.diffusemap.heigh
-            uv.x += (u.x * bc[j]) * 1024
-            uv.y += (u.y * bc[j]) * 1024
-            inc(j)
-          # let
-          #   dif_col = mesh.diffuseGetColor(uv)
-          # let tmp = dif_col.extractRGB
-          # let r = (tmp.r.float * intensity).round.int
-          # let g = (tmp.g.float * intensity).round.int
-          # let b = (tmp.b.float * intensity).round.int
-          # let col = if intensity > 0.0: rgb(r, g, b) else: dif_col
-          zBuffer[pixel.x, pixel.y] = point.z
-          surf.setPixel(pixel.x, pixel.y, colWhite)
-
-  if not wireframe.isNilOrEmpty:
-    line(tv.v0, tv.v1, surf, colYellow)
-    line(tv.v1, tv.v2, surf, colYellow)
-    line(tv.v2, tv.v0, surf, colYellow)
+  try:
+    for x in countUp(v0.x, v1.x, 1.0):
+      if steep:
+        sur.setPixel(y, x, col)
+      else:
+        sur.setPixel(x, y, col)
+      error2 += derror2
+      if error2 > dx:
+        y += (if v1.y > v0.y: 1 else: -1)
+        error2 -= dx * 2
+  except IndexError:
+    discard
 
 # debug helpers
 # proc draw_boundingbox(s: var Surface, t: Triangle) =
@@ -135,54 +111,102 @@ proc triangle*(tv, tuv: Triangle, surf: var Surface, mesh: Mesh, zBuffer: var Zb
 #   for v in get_points_in_bbox(t.bounding_box):
 #     s.setPixel(v.x, v.y, c)
 
-proc scale_factor(mesh: Mesh, width, height: int): float =
-  verbose(1, echo "max" & $max([mesh.width, mesh.height]))
-  return min([width, height]).float / max([mesh.width, mesh.height]) / 2
+proc render(surface: var Surface, mesh: Mesh) =
 
-proc get_offset(mesh: Mesh): Offset =
-  let x = mesh.min("x")
-  let y = mesh.min("y")
-  let z = mesh.min("z")
-  result = (
-    x: if x < 0: x.abs else: 0,
-    y: if y < 0: y.abs else: 0,
-    z: if z < 0: z.abs else: 0
-  )
+  proc homogen[T](v:Vec4[T]): Vec4[T] {.inline.} = Vec4[T](arr: [v.x/v.w, v.y/v.w, v.z/v.w, v.w])
+  proc vec3[T](v:Vec4[T]): Vec3[T] {.inline.} = Vec3[T](arr: [v.x, v.y, v.z])
 
-proc render(surf: var Surface, mesh: Mesh, offset: Offset, scale: float) =
-  # TODO: make a raster
-  let light_dir: Vec3 = (0.0, 0.0, 1.0)
-  var zBuffer = ZbufferNew()
+  proc make_viewport[T](x, y, w, h: int): Mat4x4[T] =
+    result = mat4[T](1.0)
+
+    result[0][3] = x.float + width.float / 2.0
+    result[1][3] = y.float + height.float / 2.0
+    result[2][3] = depth.float / 2.0
+
+    result[0][0] = width.float / 2.0
+    result[1][1] = height.float / 2.0
+    result[2][2] = depth.float / 2.0
+
+  let
+    eye = vec3(2.0, 1.0, 2.0)
+    center = vec3(0.0)
+    up = vec3(0.0, 1.0, 0.0)
+    model  = translate(mat4(1.0), vec3(0.6, 1.0, -1.3))
+    view = lookAt(eye, center, up)
+    viewport = make_viewport[float](0, 0, width, height)
+    projection = perspective(math.PI/4, width/height, 0.01, 100.0)
+    # projection = ortho(-1.0, 1.0, -1.0, 1.0, 0.01, 100)
+    screen = projection * view * model
+    light_dir = vec3(2.0, 1.0, 2.0)
+
   var
-    screen_coordinates: array[3, Vec3]
-  for face in mesh.faces:
-    for i,v in pairs(face.v):
-      screen_coordinates[i] = ((v.x + offset.x) * scale, (v.y + offset.y) * scale, v.z)
-    let
-      v = (face.v[1] - face.v[0]) ^ (face.v[2] - face.v[0])
-      v_n = v.normalize()
-      intensity = v_n * light_dir
-      verts_triangle = newTriangle(screen_coordinates[0], screen_coordinates[1], screen_coordinates[2])
-      uv_triangle = newTriangle(face.t[0], face.t[1], face.t[2])
-    triangle(verts_triangle, uv_triangle, surf, mesh, zBuffer, intensity, wireframe)
+    zBuffer = ZbufferNew()
+    tv: Triangle
+    tuv: Triangle
+    point = vec3(0.0)
+    surf_cord: Vec4[float]
 
-var w_obj: Mesh
+  for face in mesh.faces:
+    tv = Triangle(
+      v0: screen * vec4(face.v[0], 1.0),
+      v1: screen * vec4(face.v[1], 1.0),
+      v2: screen * vec4(face.v[2], 1.0))
+    tuv = Triangle(v0: vec4(face.t[0], 1.0), v1: vec4(face.t[1], 1.0), v2: vec4(face.t[2], 1.0))
+    for pixel in get_points_in_bbox(tv.bounding_box):
+      let bc = tv.barycentric(pixel)
+      if is_inside(bc, pixel):
+        var
+          i = 0
+          v = cross(vec3((tv.v1 - tv.v0)), vec3((tv.v2 - tv.v0)))
+          v_n = v.normalize
+          intensity = dot(v_n, light_dir)
+
+        echo "vn: " & glm.`$`(v_n)
+        echo "intensity: " & $intensity
+        point.z = 0
+        for v in tv.fields:
+          point.z += v.z * bc[i]
+          inc(i)
+
+        if zBuffer[pixel.x, pixel.y] < point.z:
+          var
+            uv = vec2(0.0, 0.0)
+            j = 0
+
+          for u in tuv.fields:
+            # uv.x += (u.x * bc[j]) * mesh.diffusemap.width
+            # uv.y += (u.y * bc[j]) * mesh.diffusemap.heigh
+            uv.x += (u.x * bc[j]) * 1024
+            uv.y += (u.y * bc[j]) * 1024
+            inc(j)
+          let
+            dif_col = mesh.diffuseGetColor(uv)
+            # dif_col = colRed
+            tmp = dif_col.extractRGB
+            r = (tmp.r.float * intensity).round.int
+            g = (tmp.g.float * intensity).round.int
+            b = (tmp.b.float * intensity).round.int
+            col = if intensity > 0.0: rgb(r, g, b) else: dif_col
+          # let col = rgb(r, g, b)
+          # echo "r: $# g: $# b: $#" % [$r, $g, $b]
+          surf_cord = vec4(1.0)
+          zBuffer[surf_cord.x, surf_cord.y] = point.z
+          surface.setPixel(surf_cord.x, surf_cord.y, col)
+    # line(tv.v0, tv.v1, surface, colYellow)
+    # line(tv.v1, tv.v2, surface, colYellow)
+    # line(tv.v2, tv.v0, surface, colYellow)
+
+var obj: Mesh
 if diffuse_file.isNilOrEmpty:
-  w_obj = newMesh(input_file)
+  obj = newMesh(input_file)
 else:
-  w_obj = newMesh(input_file, diffuse_file)
+  obj = newMesh(input_file, diffuse_file)
 verbose(2, echo args)
-verbose(0, echo "Loaded mesh: " & $w_obj)
+verbose(0, echo "Loaded mesh: " & $obj)
 
 var s = newSurface(width, height)
 s.flip_vertically()
 
-let offset = get_offset(w_obj)
-let scale = scale_factor(w_obj, width, height)
-
-verbose(1, echo "offset " & $offset)
-verbose(1, echo "scale : $#" % $scale)
-
-render(s, w_obj, offset, scale)
+render(s, obj)
 
 s.dump_to_file(output_file)

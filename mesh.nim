@@ -1,20 +1,22 @@
-import streams, strutils, future, sequtils, system, colors
+import streams
+import strutils
+import future
+import sequtils
+import colors
 
-import nimasset.obj, nimtga
+import glm
 
-import geometry
+import nimasset.obj
+import nimtga
 
 type
-  Face* = tuple[v: array[3, Vec3], t: array[3, Vec3], n: array[3, Vec3]]
+  Face* = tuple[v: array[3, Vec3[float]], t: array[3, Vec3[float]], n: array[3, Vec3[float]]]
   Mesh* = ref object
-    vertices*: seq[Vec3]
-    textures*: seq[Vec3]
-    normals*: seq[Vec3]
+    vertices*: seq[Vec3[float]]
+    textures*: seq[Vec3[float]]
+    normals*: seq[Vec3[float]]
     faces*: seq[Face]
     diffusemap*: Image
-
-# proc all[T](args: varargs[T]): bool =
-#   return 0 in args
 
 proc `$`*(self: Mesh): string =
   result = "verts: [$#], textures: [$#], normals: [$#], faces: [$#]" % [
@@ -46,7 +48,7 @@ proc newMesh*(path: string): Mesh =
     fs = newFileStream(f)
 
   var mesh = new(Mesh)
-  let empty_vector: Vec3 = (0.0, 0.0, 0.0)
+  let empty_vector = vec3(0.0, 0.0, 0.0)
 
   mesh.vertices = @[empty_vector]
   mesh.textures = @[empty_vector]
@@ -59,13 +61,13 @@ proc newMesh*(path: string): Mesh =
     result = s[i]
 
   proc addVertex(x, y, z: float) =
-    mesh.vertices.add((x, y, z))
+    mesh.vertices.add(vec3(x, y, z))
 
   proc addTexture(u, v, w: float) =
-    mesh.textures.add((u, v, w))
+    mesh.textures.add(vec3(u, v, w))
 
   proc addNormal(x, y, z: float) =
-    mesh.normals.add((x, y, z))
+    mesh.normals.add(vec3(x, y, z))
 
   proc addFace(vi0, vi1, vi2, ti0, ti1, ti2, ni0, ni1, ni2: int) =
     try:

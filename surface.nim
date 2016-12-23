@@ -41,8 +41,8 @@ proc getPixel*(s: Surface, x, y: float): Color =
   return getPixel(s, x, y)
 
 proc setPixel*(s: var Surface, x, y: int, value: Color) =
-  assert x <= s.w
-  assert y <= s.h
+  # assert x <= s.w
+  # assert y <= s.h
   var
     x_o = x
     y_o = y
@@ -51,7 +51,11 @@ proc setPixel*(s: var Surface, x, y: int, value: Color) =
     x_o = s.w - x
   if s.flip_v:
     y_o = s.h - y
-  s.pixels[y_o][x_o] = value
+  try:
+    s.pixels[y_o][x_o] = value
+  except IndexError:
+    discard
+    # echo "index error" & $x & " " $y
 
 proc setPixel*(s: var Surface, x, y: float, value: Color) =
   let x = x.int
